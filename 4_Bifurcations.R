@@ -1,16 +1,18 @@
 source("0_Functions.R")
+library(cowplot)
+library(doFuture)
 
 # limit cycle
 
-ch <- 0.5#3
-chm <- 10#3 # needs to be bigger than or equal to cd
+ch <- 0.5 #3
+chm <- 10 #3 # needs to be bigger than or equal to ch
 dh <- 1
-dhp <- 0#1.25
+dhp <- 0 #1.25
 
 cp <- 5
 dp <- 1
 
-cm <- 10#4
+cm <- 10 #4
 dm <- 1
 
 pars <- list(ch = ch, chm = chm, dh = dh, dhp = dhp,
@@ -30,12 +32,16 @@ out_dyn <- IntegrateDynamics(ini_state, pars,
 melt_dyn <- melt(out_dyn, id.vars = c("time"))
 
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
-  geom_line(linewidth = 1) + theme_classic() + scale_y_log10() +
+  geom_line(linewidth = 1) + 
+  theme_classic() + 
+  # scale_y_log10() +
   labs(x = "Time", y = "Frequency", color = "", linetype = "") +
   ggtitle("A") +
-  scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
+  scale_color_viridis_d() +
+  # scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
   theme(text = element_text(size=15),
-        legend.text=element_text(size = 10),
+        legend.position = "top",
+        legend.text=element_text(size = 15),
         strip.background = element_blank(),
         axis.text.x = element_text(angle = 45, vjust = 0.5),
         plot.caption = element_text(hjust = 0, face= "italic"),
@@ -46,7 +52,7 @@ plDyn
 ### bifurcation
 
 ch <- 0.5
-chm <- c(3.56, 3.57) # needs to be bigger than or equal to ch
+chm <- c(3, 3.56, 3.57, 10) # needs to be bigger than or equal to ch
 dh <- 1
 dhp <- 0
 
@@ -99,26 +105,36 @@ for(i in 1:nrow(iterated_params)) {
 }
 
 end_points <- out_data %>%
-  filter(time == max(time))
+  filter(time == max(time)) %>%
+  mutate(PatEnd = pathogen) %>% 
+  mutate(MutEnd = mutualist) %>% 
+  select(chm, PatEnd, MutEnd) %>% 
+  distinct()
 
 plot_data <- out_data %>%
-  mutate(PatEnd = case_when(chm == min(chm) ~ end_points[end_points$chm == min(chm),]$pathogen,
-                            chm == max(chm) ~ end_points[end_points$chm == max(chm),]$pathogen)) %>%
-  mutate(MutEnd = case_when(chm == min(chm) ~ end_points[end_points$chm == min(chm),]$mutualist,
-                            chm == max(chm) ~ end_points[end_points$chm == max(chm),]$mutualist))
+  right_join(end_points, by = "chm")
 
 plBifurcation <- ggplot(plot_data, aes(x = pathogen, y = mutualist, color = time)) +
   geom_path(linewidth = 0.5) +
   geom_point(aes(x = PatEnd, y = MutEnd), color = "red", size = 2) +
-  facet_wrap(~chm, scales = "free", labeller = label_bquote(cols = c[hm] == .(chm)), nrow = 1) +
-  theme_classic() +
-  scale_color_gradient(low = "darkblue", high = "green") +
+  facet_wrap(~chm, 
+             scales = "free",
+             labeller = label_bquote(cols = c[hm] == .(chm)), nrow = 1) +
+  # theme_classic() +
+  theme_minimal_grid() + 
+  scale_x_continuous(limits = c(0, NA), expand = c(0,0.005), ) +
+  scale_y_continuous(limits = c(0, NA), expand = c(0,0.005)) +
+  scale_color_viridis_c(option = "G", direction = -1) +
+  # scale_color_gradient(low = "darkblue", high = "green") +
   labs(x = "Pathogen",
        y = "Mutualist",
        color = "Time") +
   ggtitle("B") +
   theme(text = element_text(size=15),
-        legend.text=element_text(size = 15),
+        legend.text = element_text(size = 15),
+        legend.key.width = unit(2, 'cm'),
+        legend.position = "top",
+        legend.justification = "center", 
         strip.background = element_blank(),
         axis.text.x = element_text(angle = 45, vjust = 0.5),
         plot.caption = element_text(hjust = 0, face= "italic"),
@@ -129,7 +145,7 @@ plBifurcation
 ### allee effect
 
 ch <- 0.5
-chm <- 5 # needs to be bigger than or equal to ch
+chm <- 10 # needs to be bigger than or equal to ch
 dh <- 1
 dhp <- 0
 
@@ -147,47 +163,63 @@ end_time <- 5e2
 time_step <- 1
 freq_cutoff <- 1e-7
 
-ini_hosts <- seq(0.001, 0.9, length.out = 100)
-ini_muts <- seq(0.0001, 0.15, length.out = 100)
+ini_hosts <- seq(0.001, 0.9, length.out = 200)
+ini_muts <- seq(0.0001, 0.15, length.out = 200)
 
-ini_path <- 0.0001 # should be less than the smaller value above
+ini_path <- 0.00005 # should be less than the smaller value above
+
+
+ini_vals <- expand_grid(host = ini_hosts, mut = ini_muts) %>% 
+  filter(mut < host - ini_path)
 
 out_data <- data.frame()
+i=1
+plan(multisession)
 
-for(i in 1:nrow(in_pars)) {
+
+out_data <- foreach(
+  j = 1:nrow(ini_vals),
+  .combine = 'rbind'
+) %dofuture% {
+  # for(i in 1:nrow(in_pars)) {
+  # for (j in 1:nrow(ini_vals)) {
+  # for(ini_host in ini_hosts) {
+  # for(ini_mut in ini_muts) {
+  ini_host = ini_vals$host[j]
+  ini_mut = ini_vals$mut[j]  
   
-  for(ini_host in ini_hosts) {
-    for(ini_mut in ini_muts) {
-      
-      cur_params <- in_pars[i,]
-      cur_pars <- as.list(cur_params)
-      
-      ini_state <- c(ini_host, ini_path, ini_mut)
-      names(ini_state) <- c("Host", "Pathogen", "Mutualist")
-      
-      out_dyn <- IntegrateDynamics(ini_state, cur_pars,
-                                   end_time, time_step,
-                                   fn = CoralMutPathDynamics)
-      
-      end_state <- as.numeric(out_dyn[nrow(out_dyn),2:4])
-      
-      cur_params$IniMut <- ini_mut
-      cur_params$IniHost <- ini_host
-      cur_params$IniPath <- ini_path
-      
-      out_coexist <- data.frame(Coexist = ifelse(prod(end_state > freq_cutoff),
-                                                 "Coexistence",
-                                                 "No coexistence"))
-      
-      cur_dyn <- cbind(cur_params, out_coexist)
-      out_data <- rbind(out_data, cur_dyn)
-    }
-  }
+  
+  cur_params <- in_pars[i,]
+  cur_pars <- as.list(cur_params)
+  
+  ini_state <- c(ini_host, ini_path, ini_mut)
+  names(ini_state) <- c("Host", "Pathogen", "Mutualist")
+  
+  out_dyn <- IntegrateDynamics(ini_state, cur_pars,
+                               end_time, time_step,
+                               fn = CoralMutPathDynamics)
+  
+  end_state <- as.numeric(out_dyn[nrow(out_dyn),2:4])
+  
+  cur_params$IniMut <- ini_mut
+  cur_params$IniHost <- ini_host
+  cur_params$IniPath <- ini_path
+  
+  out_coexist <- data.frame(Coexist = ifelse(prod(end_state > freq_cutoff),
+                                             "Coexistence",
+                                             "No coexistence"))
+  
+  cur_dyn <- cbind(cur_params, out_coexist)
+  # out_data <- rbind(out_data, cur_dyn)
+  # }
+  # }
   
 }
 
 out_data <- out_data %>%
   mutate(Coexist = ifelse(IniMut + IniPath > IniHost, NA, Coexist))
+# saveRDS(out_data, "4_IniCond_data.RDS")
+out_data = readRDS("4_IniCond_data.RDS")
 
 plIniCond <- ggplot(out_data,
                     aes(x = IniHost, y = IniMut, fill = Coexist)) +
@@ -199,7 +231,7 @@ plIniCond <- ggplot(out_data,
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   ggtitle("C") +
-  theme(axis.text = element_text( size = 10 ),
+  theme(axis.text = element_text( size = 10),
         legend.position = "top",
         panel.background = element_rect(fill = NA),
         strip.background = element_blank(),
@@ -208,7 +240,7 @@ plIniCond <- ggplot(out_data,
         plot.caption.position =  "plot")
 plIniCond
 
-layout_vec <- c(1, 1, 2, 2, 2, 3, 3)
+layout_vec <- c(1, 1, 2, 2, 2, 2, 3, 3)
 jpeg("./figs/Fig4Bifurcations.jpeg",
      width = 5000, height = 1250, res = 300)
 grid.arrange(plDyn, plBifurcation, plIniCond, nrow = 1, layout_matrix = matrix(layout_vec, nrow = 1, ncol = length(layout_vec)))

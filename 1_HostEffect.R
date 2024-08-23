@@ -1,14 +1,15 @@
 source("0_Functions.R")
+library(doFuture)
 
-ch <- seq(2, 10, length.out = 50)
+ch <- seq(1.5, 10, length.out = 200)
 chm <-  -1 # needs to be bigger than or equal to ch
-dh <- seq(0.0001, 1.5, length.out = 50)
+dh <- seq(0.0001, 1.5, length.out = 200)
 dhp <- 0
 
-cp <- 4
+cp <- 5
 dp <- 1
 
-cm <- c(6, 10, 16)
+cm <- c(6, 10, 25)
 dm <- 1
 
 in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
@@ -20,17 +21,26 @@ num_repl <- 1
 iterated_params <- bind_rows(replicate(num_repl, in_pars, simplify = FALSE))
 
 out_data <- data.frame()
-
-for(i in 1:nrow(iterated_params)) {
+plan(multisession)
+out_data <- foreach(
+  i = 1:nrow(iterated_params),
+  .combine = 'rbind',
+  .inorder = FALSE) %dofuture% {
   
   cur_params <- iterated_params[i,]
   cur_pars <- as.list(cur_params)
   
+  if (cur_pars$ch > cur_pars$dh) {
   root_soln <- uniroot(f = PredEq, interval = c(1e-10, 1), cur_pars)
   h_soln <- root_soln$root
   mp_soln <- GetPM(h_soln, cur_pars)
   p_soln <- mp_soln[1]
   m_soln <- mp_soln[2]
+  } else {
+    h_soln = 0
+    p_soln = 0
+    m_soln = 0
+  }
 
   J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
   cur_eig <- GetEig(J)
@@ -43,8 +53,7 @@ for(i in 1:nrow(iterated_params)) {
                                "\nFeasible\nbut unstable\n"))
   
   cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome))
-  out_data <- rbind(out_data, cur_dyn)
-  
+  cur_dyn
 }
 
 plHeatMapHost <- ggplot(out_data,
@@ -54,7 +63,7 @@ plHeatMapHost <- ggplot(out_data,
   labs(x = expression("Host Mortality" ~ (d[h])),
        y = expression("Host Colonization" ~ (c[h])),
        fill = "") +
-  scale_fill_manual(values = c("green", "red")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("green", "red")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
@@ -66,17 +75,17 @@ plHeatMapHost <- ggplot(out_data,
         plot.title.position = "plot",
         plot.caption.position =  "plot") +
   ggtitle("B")
-plHeatMapHost
+# plHeatMapHost
 
 ch <- 2
-chm <- 2 # needs to be bigger than or equal to ch
-dh <- c(0.25, 0.5, 1.1)
+chm <- ch # needs to be bigger than or equal to ch
+dh <- c(1, 1.1, 1.2)
 dhp <- 0
 
-cp <- 4
+cp <- 5
 dp <- 1
 
-cm <- 10
+cm <- 6
 dm <- 1
 
 in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
@@ -115,19 +124,22 @@ melt_dyn <- dyn_data %>%
   melt(id.vars = c("time", "dh"))
 
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
-  geom_line(linewidth = 1) + theme_classic() + scale_y_log10() +
+  geom_line(linewidth = 1) + theme_classic() +
   facet_wrap(~dh, scales = "free", labeller = label_bquote(cols = d[h] == .(dh))) +
   labs(x = "Time", y = "Frequency", color = "") +
   ggtitle("A") +
-  scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0.05))+ #, trans = 'log10') +
+  scale_color_viridis_d() +
+  # scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
   theme(text = element_text(size=15),
-        legend.text=element_text(size = 10),
+        legend.text=element_text(size = 15),
         strip.background = element_blank(),
         axis.text.x = element_text(angle = 45, vjust = 0.5),
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plDyn
+# plDyn
 
 jpeg("./figs/Fig1HostEffect.jpeg",
      width = 3000, height = 2000, res = 300)
