@@ -1,5 +1,4 @@
 source("0_Functions.R")
-library(doFuture)
 
 ch <- c(2, 3, 4)
 chm <-  ch # needs to be bigger than or equal to ch
@@ -56,7 +55,7 @@ plHeatMapDeath <- ggplot(out_data,
   labs(x = expression("Added Host Mortality from the Pathogen" ~ (d[hp])),
        y = expression("Mutualist Colonization"~(c[m])),
        fill = "") +
-  scale_fill_manual("Coexistence\nstatus:", values = c("green", "red")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),

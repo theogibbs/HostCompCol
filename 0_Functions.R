@@ -3,6 +3,9 @@ library(deSolve)
 library(reshape2)
 library(plotly)
 library(gridExtra)
+library(see)
+library(cowplot)
+library(doFuture)
 
 CoralMutPathDynamics <- function(time, state, pars) {
   dstatedt <- with(pars, {

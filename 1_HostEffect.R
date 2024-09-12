@@ -1,5 +1,4 @@
 source("0_Functions.R")
-library(doFuture)
 
 ch <- seq(1.5, 10, length.out = 200)
 chm <-  -1 # needs to be bigger than or equal to ch
@@ -63,7 +62,7 @@ plHeatMapHost <- ggplot(out_data,
   labs(x = expression("Host Mortality" ~ (d[h])),
        y = expression("Host Colonization" ~ (c[h])),
        fill = "") +
-  scale_fill_manual("Coexistence\nstatus:", values = c("green", "red")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
@@ -74,8 +73,11 @@ plHeatMapHost <- ggplot(out_data,
         text = element_text(size=15),
         plot.title.position = "plot",
         plot.caption.position =  "plot") +
-  ggtitle("B")
-# plHeatMapHost
+  ggtitle("C")
+plHeatMapHost
+
+# generating plots of the dynamics
+
 
 ch <- 2
 chm <- ch # needs to be bigger than or equal to ch
@@ -141,7 +143,89 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
         plot.caption.position =  "plot")
 # plDyn
 
+
+ch <- 2
+chm <-  -1 # needs to be bigger than or equal to ch
+dh <- c(0, 0.5, 1)
+dhp <- 0
+
+cp <- seq(5, 10, length.out = 200)
+dp <- 1
+
+cm <- seq(5, 35, length.out = 200)
+dm <- 1
+
+in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
+                    cp = cp, dp = dp,
+                    cm = cm, dm = dm)
+in_pars$chm <- in_pars$ch
+
+num_repl <- 1
+iterated_params <- bind_rows(replicate(num_repl, in_pars, simplify = FALSE))
+
+out_data <- data.frame()
+plan(multisession)
+out_data <- foreach(
+  i = 1:nrow(iterated_params),
+  .combine = 'rbind',
+  .inorder = FALSE) %dofuture% {
+    
+    cur_params <- iterated_params[i,]
+    cur_pars <- as.list(cur_params)
+    
+    if (cur_pars$ch > cur_pars$dh) {
+      root_soln <- uniroot(f = PredEq, interval = c(1e-10, 1), cur_pars)
+      h_soln <- root_soln$root
+      mp_soln <- GetPM(h_soln, cur_pars)
+      p_soln <- mp_soln[1]
+      m_soln <- mp_soln[2]
+    } else {
+      h_soln = 0
+      p_soln = 0
+      m_soln = 0
+    }
+    
+    J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
+    cur_eig <- GetEig(J)
+    
+    cur_feas <- (h_soln > 0) * (p_soln > 0) * (m_soln > 0)
+    cur_stable <- cur_eig < 0
+    
+    cur_outcome <- ifelse(!cur_feas, "\nNot feasible\n",
+                          ifelse(cur_stable, "\nFeasible\nand stable\n",
+                                 "\nFeasible\nbut unstable\n"))
+    
+    cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome))
+    cur_dyn
+  }
+
+plHeatMapClassicComp <- ggplot(out_data,
+                        aes(x = cp, y = cm, fill = Outcome)) +
+  facet_wrap(~dh, labeller = label_bquote(d[h] == .(dh))) +
+  geom_tile() + theme_classic() +
+  labs(x = expression("Pathogen Colonization" ~ (c[p])),
+       y = expression("Mutualist Colonization" ~ (c[m])),
+       fill = "") +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme(axis.text = element_text( size = 10 ),
+        panel.spacing = unit(2, "lines"),
+        panel.background = element_rect(fill = NA),
+        strip.background = element_blank(),
+        axis.text.x = element_text(angle = 45, vjust = 0.5),
+        text = element_text(size=15),
+        plot.title.position = "plot",
+        plot.caption.position =  "plot") +
+  ggtitle("B")
+plHeatMapClassicComp
+
+
+# writing out figure
 jpeg("./figs/Fig1HostEffect.jpeg",
-     width = 3000, height = 2000, res = 300)
-grid.arrange(plDyn, plHeatMapHost, nrow = 2)
+     width = 3000, height = 3000, res = 300)
+grid.arrange(plDyn, plHeatMapClassicComp, plHeatMapHost, nrow = 3)
 dev.off()
+
+
+
