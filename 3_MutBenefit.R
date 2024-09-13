@@ -1,5 +1,7 @@
+# call functions file
 source("0_Functions.R")
 
+# Choose parameter values. Choose a range of values for the added colonization rate of host due to mutualist settlement. Choose three values for colonizer (mutualist) colonization rate
 ch <- 0.25
 chm <- seq(0.25+1e-10, 25, length.out = 200) # needs to be bigger than or equal to ch
 dh <- 1
@@ -11,6 +13,7 @@ dp <- 1
 cm <- c(10, 11, 15)
 dm <- 1
 
+# get all possible combinations of parameter values
 in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
                     cp = cp, dp = dp,
                     cm = cm, dm = dm)
@@ -23,11 +26,14 @@ num_repl <- 1
 iterated_params <- bind_rows(replicate(num_repl, in_pars, simplify = FALSE))
 iterated_params$ParsID <- 1:nrow(iterated_params)
 
+# choose initial condition standard deviation
 ini_cond_sds <- c(0.001, 0.5)
 
+# indiciate how long to run simulation and time step size
 end_time <- 4000
 time_step <- 0.5
 
+# initialize output data frame
 out_data <- data.frame()
 
 out_data <- foreach(
@@ -39,32 +45,39 @@ out_data <- foreach(
     .inorder = FALSE) %dofuture% {
       cur_params <- iterated_params[i,]
       cur_pars <- as.list(cur_params)
-      
+
+      # solve for equilibrium for each population
       root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
       h_soln <- root_soln$root
       mp_soln <- GetPM(h_soln, cur_pars)
       p_soln <- mp_soln[1]
       m_soln <- mp_soln[2]
-      
+
+      # determine feasibility
       cur_feas <- (h_soln > 0) * (p_soln > 0) * (m_soln > 0)
-      
+
+      # choose positive initial conditions to run simulation
       ini_state <- c(h_soln, p_soln, m_soln) + rnorm(n = 3, mean = 0, sd = ini_cond_sd)
       ini_state[ini_state <= 0] <- 0.0001
       names(ini_state) <- c("Host", "Pathogen", "Mutualist")
-      
+
+      # simulate the dynamics
       out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                    end_time, time_step,
                                    fn = CoralMutPathDynamics)
-      
+
+      # extract last 100 time steps of the output
       out_dyn <- out_dyn %>%
         filter(time > (end_time - 100)) %>%
         melt(id.vars = c("time"))
-      
+
+      # extract leading eigenvalue for the Jacobian matrix to determine stability
       J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
       cur_eig <- GetEig(J)
       
       cur_params$IniCondSd <- ini_cond_sd
-      
+
+      # label outcomes accordingly with respective population, feasibility, and stability.
       cur_dyn <- cbind(cur_params, out_dyn) %>%
         mutate(pred_soln = case_when(variable == "Host" ~ h_soln,
                                      variable == "Mutualist" ~ m_soln,
@@ -94,6 +107,9 @@ proc_data$cm_label <- factor(proc_data$cm_label,
 #       y = "Eigenvalue",
 #       color = "Mutualist\nColonization")
 
+# plot output dataframe. X-axis represents additional host colonization rate from mutualist settlement while y-axis represents frequency of the respective population
+# Blue indicates feasible and stable, yellow indicates feasible and unstable, and red indicates infeasible equilbria
+# Each panel is a different population: host, mutualist (colonizer), or pathogen (competitor)
 plMutBenefit <- ggplot(proc_data,
                        aes(x = chm, y = value)) +
   
@@ -157,6 +173,7 @@ plMutBenefit
 
 # heatmaps
 
+# initialize parameter values. Choose range of values for additional host colonization rate due to mutualist settlement and mutualist colonization rate. Choose 2 values for intrinsic host colonization rate. 
 ch <- c(0.25, 1.25)
 chm <- seq(1.75, 25, length.out = 200) # needs to be bigger than or equal to ch
 dh <- 1
@@ -168,33 +185,40 @@ dp <- 1
 cm <- seq(4, 16, length.out = 200)
 dm <- 1
 
+# Find all possible combinations of parameters
 in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
                     cp = cp, dp = dp,
                     cm = cm, dm = dm)
 
 iterated_params <- bind_rows(replicate(num_repl, in_pars, simplify = FALSE))
 
+# initialize output dataframe
 out_data <- data.frame()
 
 out_data <- foreach(
   i = 1:nrow(iterated_params),
   .combine = 'rbind') %dofuture% {
-    
+
+    # intiialize current iteration's parameter values
     cur_params <- iterated_params[i,]
     cur_pars <- as.list(cur_params)
-    
+
+    # solve for equilibria of each population
     root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
     h_soln <- root_soln$root
     mp_soln <- GetPM(h_soln, cur_pars)
     p_soln <- mp_soln[1]
     m_soln <- mp_soln[2]
-    
+
+    # extract leading eigenvalue from the Jacobian matrix to determine stability
     J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
     cur_eig <- GetEig(J)
-    
+
+    # Determine feasibility and stability of equilbria
     cur_feas <- (h_soln > 0) * (p_soln > 0) * (m_soln > 0)
     cur_stable <- cur_eig < 0
-    
+
+    # Label the feasibility and stability accordingly
     cur_outcome <- ifelse(!cur_feas, "\nNot feasible\n",
                           ifelse(cur_stable, "\nFeasible\nand stable\n",
                                  "\nFeasible\nbut unstable\n"))
@@ -208,6 +232,9 @@ out_data <- mutate(out_data, ch_label = paste0("c[h] == ", ch))
 out_data$ch_label <- factor(out_data$ch_label,
                              levels = c("c[h] == 1.75", "c[h] == 1.25", "c[h] == 0.75", "c[h] == 0.25"))
 
+# create heatmap to visualize output data. X-axis represents additional host colonization due to mutualist settlement while the y-axis represents mutualist (colonizer) colonization rate
+# Each panel indicates a different intrinsic host colonization rate
+# Blue indices feasible and stable, yellow indicates feasible and unstable, and red indicates infeasible. 
 plHeatMap <- ggplot(out_data,
                     aes(x = chm, y = cm, fill = Outcome)) +
   geom_tile() + theme_classic() +
@@ -233,6 +260,9 @@ plHeatMap
 
 # limit cycle
 
+# Simulate an example of the limit cycle
+
+# initialize parameters
 ch <- 0.5 #3
 chm <- 10 #3 # needs to be bigger than or equal to ch
 dh <- 1
@@ -248,18 +278,22 @@ pars <- list(ch = ch, chm = chm, dh = dh, dhp = dhp,
              cp = cp, dp = dp,
              cm = cm, dm = dm)
 
+# set initial conditions
 ini_state <- c(1, 0.5, 0.5) * 0.125
 names(ini_state) <- c("Host", "Pathogen", "Mutualist")
 
+# set length of simulation and time step size
 end_time <- 50
 time_step <- 0.001
 
+# simulate dynamics
 out_dyn <- IntegrateDynamics(ini_state, pars,
                              end_time, time_step,
                              fn = CoralMutPathDynamics)
 
 melt_dyn <- melt(out_dyn, id.vars = c("time"))
 
+# plot output. X-axis is time and y-axis is proportion of space occupied by the respective population. 
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   geom_line(linewidth = 1) + 
   theme_classic() + 
@@ -280,6 +314,7 @@ plDyn
 
 ### bifurcation
 
+# initialize parameters values. Choose 4 different values for additional host colonization rate from mutualist settlement
 ch <- 0.5
 chm <- c(3, 3.56, 3.57, 10) # needs to be bigger than or equal to ch
 dh <- 1
@@ -291,6 +326,7 @@ dp <- 1
 cm <- 10
 dm <- 1
 
+# find all combinations of parameter values
 in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
                     cp = cp, dp = dp,
                     cm = cm, dm = dm)
@@ -303,26 +339,32 @@ num_repl <- 1
 iterated_params <- bind_rows(replicate(num_repl, in_pars, simplify = FALSE))
 iterated_params$ParsID <- 1:nrow(iterated_params)
 
+# Set length of simulation and time step size
 end_time <- 2e3
 time_step <- 0.1
 
+# intiialize output dataframe
 out_data <- data.frame()
 
 for(i in 1:nrow(iterated_params)) {
-  
+
+  # intiailize current iteration's parameters
   cur_params <- iterated_params[i,]
   cur_pars <- as.list(cur_params)
-  
+
+  # solve for equilibria of all populations
   root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
   h_soln <- root_soln$root
   mp_soln <- GetPM(h_soln, cur_pars)
   p_soln <- mp_soln[1]
   m_soln <- mp_soln[2]
-  
+
+  # Choose initial condition
   ini_state <- c(h_soln, p_soln, m_soln) + rnorm(n = 3, mean = 0, sd = 0.001)
   ini_state[ini_state <= 0] <- 0.001
   names(ini_state) <- c("host", "pathogen", "mutualist")
-  
+
+  # simulate the dynamics
   out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                end_time, time_step,
                                fn = CoralMutPathDynamics)
@@ -333,6 +375,7 @@ for(i in 1:nrow(iterated_params)) {
   
 }
 
+# indicate final frequencies at the end of the simulation
 end_points <- out_data %>%
   filter(time == max(time)) %>%
   mutate(PatEnd = pathogen) %>% 
@@ -343,6 +386,7 @@ end_points <- out_data %>%
 plot_data <- out_data %>%
   right_join(end_points, by = "chm")
 
+# plot output dataframe. X-axis is pathogen frequency while y-axis is mutualist frequency. Color indicates time at which the respective frequencies occurred. 
 plBifurcation <- ggplot(plot_data, aes(x = pathogen, y = mutualist, color = time)) +
   geom_path(linewidth = 0.5) +
   geom_point(aes(x = PatEnd, y = MutEnd), color = "red", size = 2) +
@@ -371,8 +415,9 @@ plBifurcation <- ggplot(plot_data, aes(x = pathogen, y = mutualist, color = time
         plot.caption.position =  "plot")
 plBifurcation
 
-### allee effect
+### Demonstrate the allee effect in the model
 
+# initialize parameter values
 ch <- 0.5
 chm <- 10 # needs to be bigger than or equal to ch
 dh <- 1
@@ -388,23 +433,25 @@ in_pars <- data.frame(ch = ch, chm = chm, dh = dh, dhp = dhp,
                       cp = cp, dp = dp,
                       cm = cm, dm = dm)
 
+# set duration of simulationa, time step size, and minimum population frequency
 end_time <- 5e2
 time_step <- 1
 freq_cutoff <- 1e-7
 
+# initialize a range of intiial conditions for host and mutualist populations
 ini_hosts <- seq(0.001, 0.9, length.out = 200)
 ini_muts <- seq(0.0001, 0.15, length.out = 200)
 
+# choose one initial condition for pathogen population
 ini_path <- 0.00005 # should be less than the smaller value above
-
 
 ini_vals <- expand_grid(host = ini_hosts, mut = ini_muts) %>% 
   filter(mut < host - ini_path)
 
+# initialize output dataframe
 out_data <- data.frame()
 i=1
 plan(multisession)
-
 
 out_data <- foreach(
   j = 1:nrow(ini_vals),
@@ -417,23 +464,27 @@ out_data <- foreach(
   ini_host = ini_vals$host[j]
   ini_mut = ini_vals$mut[j]  
   
-  
+  # initialize parameters
   cur_params <- in_pars[i,]
   cur_pars <- as.list(cur_params)
-  
+
+  # set initial conditions for the simulation
   ini_state <- c(ini_host, ini_path, ini_mut)
   names(ini_state) <- c("Host", "Pathogen", "Mutualist")
-  
+
+  # simulate the dynamics for the iteration's respective initial conditions
   out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                end_time, time_step,
                                fn = CoralMutPathDynamics)
-  
+
+  # extract final densities of each population at the end of the simulation
   end_state <- as.numeric(out_dyn[nrow(out_dyn),2:4])
   
   cur_params$IniMut <- ini_mut
   cur_params$IniHost <- ini_host
   cur_params$IniPath <- ini_path
-  
+
+  # Determine coexistence comparative to the frequency cutoff set
   out_coexist <- data.frame(Coexist = ifelse(prod(end_state > freq_cutoff),
                                              "Coexistence",
                                              "No coexistence"))
@@ -450,6 +501,8 @@ out_data <- out_data %>%
 # saveRDS(out_data, "4_IniCond_data.RDS")
 out_data = readRDS("4_IniCond_data.RDS")
 
+# plot output dataframe. X-axis represents initial condition of the host population while the y-axis represents the initial condition of the mutualist (colonizer) population
+# Blue represents coexistence while grey represents no coexistence
 plIniCond <- ggplot(out_data,
                     aes(x = IniHost, y = IniMut, fill = Coexist)) +
   geom_tile() + theme_classic() +
