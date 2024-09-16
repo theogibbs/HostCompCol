@@ -7,6 +7,8 @@ library(see)
 library(cowplot)
 library(doFuture)
 
+# returns the derivatives from the current state and
+# model parameters to integrate the ODEs
 CoralMutPathDynamics <- function(time, state, pars) {
   dstatedt <- with(pars, {
     
@@ -40,6 +42,8 @@ EndDynamics <- function(inistate, pars, endtime, timestep, timelength, fn){
   return(timeseries)
 }
 
+# returns the equation for the host so we can solve
+# it numerically using the current parameters
 PredEq <- function(h, pars) {
   ret <- with(pars, {
     X <- (dp + dh + dhp) / cp
@@ -53,6 +57,8 @@ PredEq <- function(h, pars) {
   return(ret)
 }
 
+# returns the values of the pathogen and mutualist
+# given a host value and the parameters
 GetPM <- function(h, pars) {
   ret <- with(pars, {
     X <- (dp + dh + dhp) / cp
@@ -67,6 +73,8 @@ GetPM <- function(h, pars) {
   return(ret)
 }
 
+# builds the Jacobian of the model as in
+# Appendix 1 of the main text
 BuildJacobian <- function(h, p, m, pars) {
   J <- with(pars, {
     J <- matrix(0, 3, 3)
@@ -87,6 +95,8 @@ BuildJacobian <- function(h, p, m, pars) {
   return(J)
 }
 
+# helper function to find the eigenvalues of the Jacobian
+# and return the one with largest real part
 GetEig <- function(J) {
   eigs <- eigen(J, only.values = TRUE)$values
   re_eigs <- Re(eigs)

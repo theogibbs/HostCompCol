@@ -498,8 +498,8 @@ out_data <- foreach(
 
 out_data <- out_data %>%
   mutate(Coexist = ifelse(IniMut + IniPath > IniHost, NA, Coexist))
-# saveRDS(out_data, "4_IniCond_data.RDS")
-out_data = readRDS("4_IniCond_data.RDS")
+# saveRDS(out_data, "IniCond_data.RDS")
+out_data = readRDS("IniCond_data.RDS")
 
 # plot output dataframe. X-axis represents initial condition of the host population while the y-axis represents the initial condition of the mutualist (colonizer) population
 # Blue represents coexistence while grey represents no coexistence
