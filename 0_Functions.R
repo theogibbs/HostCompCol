@@ -103,26 +103,3 @@ GetEig <- function(J) {
   max_eig <- max(re_eigs)
   return(max_eig)
 }
-
-HM_LimitCycle <- function(h, p, m, pars) {
-  ret <- with(pars, {
-    LHS = -ch * h^2 + (ch - dh) * h + (chm - ch) * (1 - h) * m
-    RHS = dhp * p
-    # h_p0 = dhp * ((dh + dp + dhp) / cp)
-    # h_p1 = dh - ch + dhp
-    # h_p2 = ch
-    # h_p = h_p0 + h_p1 * h + h_p2 * h^2
-    # 
-    # m_p0 = 0
-    # m_p1 = (chm - ch) * (1 + ((dh + dm) / cp) + (1 + (cp / cm)) * ((dh + dp) / cp))
-    # m_p2 = (chm - ch) * cm / cp
-    # m_p = m_p0 + m_p1 * m + m_p2 * m^2
-    
-    # ret <- m_p - h_p
-    ret <- LHS - RHS
-    return(ret)
-  })
-  return(ret)
-}
-
-

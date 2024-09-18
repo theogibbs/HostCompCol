@@ -1,7 +1,8 @@
 # Call functions file
 source("0_Functions.R")
 
-# Choose parameters values. Choose range of values for pathogenicity parameter value and colonizer (mutualist) colonization rate and 3 different values for host colonization rate. 
+# Feasibility and stability of coexistence as pathogen virulence and mutualist colonization rates are varied ----
+
 ch <- c(2, 3, 4)
 chm <-  ch # needs to be bigger than or equal to ch
 dh <- 1
@@ -59,7 +60,7 @@ out_data <- foreach(
   }
 
 # create heatmap from output dataframe. X-axis represents pathogenicity value while y-axis represents colonizer (mutualist) colonization rate. 
-# Red represenst infeasible equilibrium while blue represents a feasible and stable equilibrium.
+# Red represents infeasible equilibrium while blue represents a feasible and stable equilibrium.
 plHeatMapDeath <- ggplot(out_data,
                          aes(x = dhp, y = cm, fill = Outcome)) +
   facet_wrap(~ch, labeller = label_bquote(c[h] == .(ch))) +
@@ -78,9 +79,9 @@ plHeatMapDeath <- ggplot(out_data,
         plot.title.position = "plot",
         plot.caption.position =  "plot") +
   ggtitle("B")
-# plHeatMapDeath
+plHeatMapDeath # Figure 2 B in main text
 
-# Create simulations of the dynamics fr various pathogenicity values
+# Example trajectories as pathogen virulence is varied ----
 ch <- 2
 chm <- ch # needs to be bigger than or equal to ch
 dh <- 1
@@ -141,9 +142,8 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   labs(x = "Time", y = "Frequency", color = "") +
   ggtitle("A") +
   scale_color_viridis_d() +
-  # scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
   scale_x_continuous(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0.05)) + #, trans = 'log10') +
+  scale_y_continuous(expand = c(0,0.05)) +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
         strip.background = element_blank(),
@@ -151,8 +151,9 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-# plDyn
+plDyn # Figure 2 A in the main text
 
+# Save figure ----
 jpeg("./figs/Fig2PathDeath.jpeg",
      width = 3000, height = 2000, res = 300)
 grid.arrange(plDyn, plHeatMapDeath, nrow = 2)

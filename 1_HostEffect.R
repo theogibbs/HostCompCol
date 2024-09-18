@@ -1,7 +1,7 @@
 source("0_Functions.R")
 
+# Feasibility and stability of coexistence state as host mortality and colonization rates are varied ----
 ch <- seq(1.5, 10, length.out = 200)
-chm <-  -1 # needs to be bigger than or equal to ch
 dh <- seq(0.0001, 1.5, length.out = 200)
 dhp <- 0
 
@@ -11,7 +11,7 @@ dp <- 1
 cm <- c(6, 10, 25)
 dm <- 1
 
-in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
+in_pars <- crossing(ch = ch, dh = dh, dhp = dhp,
                     cp = cp, dp = dp,
                     cm = cm, dm = dm)
 in_pars$chm <- in_pars$ch
@@ -74,11 +74,9 @@ plHeatMapHost <- ggplot(out_data,
         plot.title.position = "plot",
         plot.caption.position =  "plot") +
   ggtitle("C")
-plHeatMapHost
+plHeatMapHost # Figure 1 C in the main text
 
-# generating plots of the dynamics
-
-
+# Example trajectories as host mortality is varied ----
 ch <- 2
 chm <- ch # needs to be bigger than or equal to ch
 dh <- c(1, 1.1, 1.2)
@@ -131,9 +129,8 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   labs(x = "Time", y = "Frequency", color = "") +
   ggtitle("A") +
   scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0.05))+ #, trans = 'log10') +
+  scale_y_continuous(expand = c(0, 0.05))+
   scale_color_viridis_d() +
-  # scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
         strip.background = element_blank(),
@@ -141,11 +138,10 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-# plDyn
+plDyn # Figure 1 A in the main text
 
-
+# Feasibility and stability of coexistence state as host mortality and colonization rates are varied ----
 ch <- 2
-chm <-  -1 # needs to be bigger than or equal to ch
 dh <- c(0, 0.5, 1)
 dhp <- 0
 
@@ -155,7 +151,7 @@ dp <- 1
 cm <- seq(5, 35, length.out = 200)
 dm <- 1
 
-in_pars <- crossing(ch = ch, chm = chm, dh = dh, dhp = dhp,
+in_pars <- crossing(ch = ch, dh = dh, dhp = dhp,
                     cp = cp, dp = dp,
                     cm = cm, dm = dm)
 in_pars$chm <- in_pars$ch
@@ -218,10 +214,10 @@ plHeatMapClassicComp <- ggplot(out_data,
         plot.title.position = "plot",
         plot.caption.position =  "plot") +
   ggtitle("B")
-plHeatMapClassicComp
+plHeatMapClassicComp # Figure 1 B in the main text
 
 
-# writing out figure
+# Save figure ----
 jpeg("./figs/Fig1HostEffect.jpeg",
      width = 3000, height = 3000, res = 300)
 grid.arrange(plDyn, plHeatMapClassicComp, plHeatMapHost, nrow = 3)

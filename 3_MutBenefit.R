@@ -1,6 +1,8 @@
 # call functions file
 source("0_Functions.R")
 
+# Bifurcation diagrams as the benefit to host colonization from the mutualist is increased ----
+
 # Choose parameter values. Choose a range of values for the added colonization rate of host due to mutualist settlement. Choose three values for colonizer (mutualist) colonization rate
 ch <- 0.25
 chm <- seq(0.25+1e-10, 25, length.out = 200) # needs to be bigger than or equal to ch
@@ -45,38 +47,38 @@ out_data <- foreach(
     .inorder = FALSE) %dofuture% {
       cur_params <- iterated_params[i,]
       cur_pars <- as.list(cur_params)
-
+      
       # solve for equilibrium for each population
       root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
       h_soln <- root_soln$root
       mp_soln <- GetPM(h_soln, cur_pars)
       p_soln <- mp_soln[1]
       m_soln <- mp_soln[2]
-
+      
       # determine feasibility
       cur_feas <- (h_soln > 0) * (p_soln > 0) * (m_soln > 0)
-
+      
       # choose positive initial conditions to run simulation
       ini_state <- c(h_soln, p_soln, m_soln) + rnorm(n = 3, mean = 0, sd = ini_cond_sd)
       ini_state[ini_state <= 0] <- 0.0001
       names(ini_state) <- c("Host", "Pathogen", "Mutualist")
-
+      
       # simulate the dynamics
       out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                    end_time, time_step,
                                    fn = CoralMutPathDynamics)
-
+      
       # extract last 100 time steps of the output
       out_dyn <- out_dyn %>%
         filter(time > (end_time - 100)) %>%
         melt(id.vars = c("time"))
-
+      
       # extract leading eigenvalue for the Jacobian matrix to determine stability
       J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
       cur_eig <- GetEig(J)
       
       cur_params$IniCondSd <- ini_cond_sd
-
+      
       # label outcomes accordingly with respective population, feasibility, and stability.
       cur_dyn <- cbind(cur_params, out_dyn) %>%
         mutate(pred_soln = case_when(variable == "Host" ~ h_soln,
@@ -87,38 +89,27 @@ out_data <- foreach(
                                                 "Feasible and stable",
                                                 "Feasible but unstable"),
                                "Not feasible"))
-      
       cur_dyn
     }
 
 proc_data <- out_data %>%
   mutate(pred_soln = ifelse(pred_soln > 0, pred_soln, NA))
 
-# Weird stuff I had to do to change the labelling order to descend
+# Reorder data to have labels in descending order
 proc_data <- mutate(proc_data, cm_label = paste0("c[m] == ", cm))
 proc_data$cm_label <- factor(proc_data$cm_label,
                              levels = c("c[m] == 15", "c[m] == 11", "c[m] == 10", "c[m] == 5"))
-
-#ggplot(out_data,
-#       aes(x = chm, y = Eigenvalue, color = as.factor(cm))) +
-#  geom_point() + theme_classic() +
-#  geom_hline(yintercept = 0) +
-#  labs(x = "Added Host Colonization from the Mutualist",
-#       y = "Eigenvalue",
-#       color = "Mutualist\nColonization")
 
 # plot output dataframe. X-axis represents additional host colonization rate from mutualist settlement while y-axis represents frequency of the respective population
 # Blue indicates feasible and stable, yellow indicates feasible and unstable, and red indicates infeasible equilbria
 # Each panel is a different population: host, mutualist (colonizer), or pathogen (competitor)
 plMutBenefit <- ggplot(proc_data,
                        aes(x = chm, y = value)) +
-  
   facet_grid(
     rows = vars(cm_label),
     cols = vars(variable),
     labeller = label_parsed
   ) +
-  # facet_grid(cm~variable, labeller = label_bquote(rows = c[m] == .(cm), cols = .(variable))) +
   geom_point(size = 2, alpha = 0.005) + theme_classic() +
   geom_line(linewidth = 1, aes(x = chm, y = pred_soln, color = Stable)) +
   scale_color_manual(breaks = c("Feasible and stable", "Feasible but unstable", "Not feasible"),
@@ -130,48 +121,14 @@ plMutBenefit <- ggplot(proc_data,
   ggtitle("A") +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
-        legend.position = "none", #"top",
+        legend.position = "none",
         strip.background = element_blank(),
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plMutBenefit
+plMutBenefit # Figure 3 A in the main text
 
-# 
-# temp_df =  out_data %>%
-#   filter(ch == 0.5) %>% 
-#   filter(chm > 7.35 & chm < 7.4) %>% 
-#   filter(cm == 10) %>% 
-#   filter(IniCondSd == 0.001)# %>% 
-# # select(variable, value, time) %>%
-# # pivot_wider(names_from = variable, values_from = value)
-# 
-# hm_plot <- temp_df %>% 
-#   select(variable, value, time) %>%
-#   pivot_wider(names_from = variable, values_from = value) %>% 
-#   ggplot(aes(x = Host, y = Mutualist, z = Mutualist)) +
-#   geom_point(size = 2, color = "black", alpha = 0.5) + 
-#   # coord_cartesian(xlim = c(0,1), ylim = c(0,10)) +
-#   theme_classic()
-# hm_plot
-# 
-# plot_ly(x = hm_plot$Host, y = hm_plot$Pathogen, z = hm_plot$Mutualist, type = "scatter3d", mode = "markers")
-# 
-# Host_vec = seq(0, 1, length.out = 100)
-# Pathogen_vec = Host_vec
-# Mutualist_vec = Host_vec
-# 
-# limit_df = expand_grid(data.frame(Host = Host_vec), data.frame(Mutualist = Mutualist_vec), data.frame(Pathogen = Pathogen_vec)) %>% 
-#   mutate(ret = HM_LimitCycle(Host, Pathogen, Mutualist, select(temp_df, ch:dm) %>% mutate(dhp = 0.1) %>% distinct()) )
-# 
-# hm_plot_analytical <- limit_df %>% 
-#   ggplot(aes(x = Host, y = Mutualist, z = ret)) +
-#   geom_contour_filled() +
-#   geom_contour(breaks = c(1), color = 'red') +
-#   theme_classic()
-# hm_plot_analytical
-
-# heatmaps
+# Feasibility and stability of coexistence as mutualist colonization rate and benefit to host colonization are varied ----
 
 # initialize parameter values. Choose range of values for additional host colonization rate due to mutualist settlement and mutualist colonization rate. Choose 2 values for intrinsic host colonization rate. 
 ch <- c(0.25, 1.25)
@@ -198,26 +155,26 @@ out_data <- data.frame()
 out_data <- foreach(
   i = 1:nrow(iterated_params),
   .combine = 'rbind') %dofuture% {
-
-    # intiialize current iteration's parameter values
+    
+    # initialize current iteration's parameter values
     cur_params <- iterated_params[i,]
     cur_pars <- as.list(cur_params)
-
+    
     # solve for equilibria of each population
     root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
     h_soln <- root_soln$root
     mp_soln <- GetPM(h_soln, cur_pars)
     p_soln <- mp_soln[1]
     m_soln <- mp_soln[2]
-
+    
     # extract leading eigenvalue from the Jacobian matrix to determine stability
     J <- BuildJacobian(h_soln, p_soln, m_soln, cur_pars)
     cur_eig <- GetEig(J)
-
+    
     # Determine feasibility and stability of equilbria
     cur_feas <- (h_soln > 0) * (p_soln > 0) * (m_soln > 0)
     cur_stable <- cur_eig < 0
-
+    
     # Label the feasibility and stability accordingly
     cur_outcome <- ifelse(!cur_feas, "\nNot feasible\n",
                           ifelse(cur_stable, "\nFeasible\nand stable\n",
@@ -227,10 +184,10 @@ out_data <- foreach(
     cur_dyn
   }
 
-# Weird stuff I had to do to change the labelling order to descend
+# Reorder data to have labels in descending order
 out_data <- mutate(out_data, ch_label = paste0("c[h] == ", ch))
 out_data$ch_label <- factor(out_data$ch_label,
-                             levels = c("c[h] == 1.75", "c[h] == 1.25", "c[h] == 0.75", "c[h] == 0.25"))
+                            levels = c("c[h] == 1.75", "c[h] == 1.25", "c[h] == 0.75", "c[h] == 0.25"))
 
 # create heatmap to visualize output data. X-axis represents additional host colonization due to mutualist settlement while the y-axis represents mutualist (colonizer) colonization rate
 # Each panel indicates a different intrinsic host colonization rate
@@ -246,7 +203,6 @@ plHeatMap <- ggplot(out_data,
     rows = vars(ch_label),
     labeller = label_parsed
   ) +
-  # facet_wrap(~ch, labeller = label_bquote(rows = c[h] == .(ch)), ncol = 1) +
   ggtitle("B") + scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
@@ -256,22 +212,20 @@ plHeatMap <- ggplot(out_data,
         text = element_text(size=15),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plHeatMap
+plHeatMap # Figure 3 B in the main text
 
-# limit cycle
-
-# Simulate an example of the limit cycle
+# Example trajectories where a limit cycle is present ----
 
 # initialize parameters
-ch <- 0.5 #3
-chm <- 10 #3 # needs to be bigger than or equal to ch
+ch <- 0.5
+chm <- 10 # needs to be bigger than or equal to ch
 dh <- 1
-dhp <- 0 #1.25
+dhp <- 0
 
 cp <- 5
 dp <- 1
 
-cm <- 10 #4
+cm <- 10
 dm <- 1
 
 pars <- list(ch = ch, chm = chm, dh = dh, dhp = dhp,
@@ -297,11 +251,9 @@ melt_dyn <- melt(out_dyn, id.vars = c("time"))
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   geom_line(linewidth = 1) + 
   theme_classic() + 
-  # scale_y_log10() +
   labs(x = "Time", y = "Frequency", color = "", linetype = "") +
   ggtitle("C") +
   scale_color_viridis_d() +
-  # scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
   theme(text = element_text(size=15),
         legend.position = "top",
         legend.text=element_text(size = 15),
@@ -310,9 +262,9 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plDyn
+plDyn # Figure 3 C in the main text
 
-### bifurcation
+# Phase-space trajectories as the limit cycle is approached ----
 
 # initialize parameters values. Choose 4 different values for additional host colonization rate from mutualist settlement
 ch <- 0.5
@@ -343,27 +295,27 @@ iterated_params$ParsID <- 1:nrow(iterated_params)
 end_time <- 2e3
 time_step <- 0.1
 
-# intiialize output dataframe
+# initialize output dataframe
 out_data <- data.frame()
 
 for(i in 1:nrow(iterated_params)) {
-
+  
   # intiailize current iteration's parameters
   cur_params <- iterated_params[i,]
   cur_pars <- as.list(cur_params)
-
+  
   # solve for equilibria of all populations
   root_soln <- uniroot(f = PredEq, interval = c(0, 1), cur_pars)
   h_soln <- root_soln$root
   mp_soln <- GetPM(h_soln, cur_pars)
   p_soln <- mp_soln[1]
   m_soln <- mp_soln[2]
-
+  
   # Choose initial condition
   ini_state <- c(h_soln, p_soln, m_soln) + rnorm(n = 3, mean = 0, sd = 0.001)
   ini_state[ini_state <= 0] <- 0.001
   names(ini_state) <- c("host", "pathogen", "mutualist")
-
+  
   # simulate the dynamics
   out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                end_time, time_step,
@@ -393,12 +345,10 @@ plBifurcation <- ggplot(plot_data, aes(x = pathogen, y = mutualist, color = time
   facet_wrap(~chm, 
              scales = "free",
              labeller = label_bquote(cols = c[hm] == .(chm)), nrow = 1) +
-   theme_classic() +
-  #theme_minimal_grid() + 
+  theme_classic() +
   scale_x_continuous(limits = c(0, NA), expand = c(0,0.005), ) +
   scale_y_continuous(limits = c(0, NA), expand = c(0,0.005)) +
   scale_color_viridis_c(option = "G", direction = -1) +
-  # scale_color_gradient(low = "darkblue", high = "green") +
   labs(x = "Pathogen",
        y = "Mutualist",
        color = "Time") +
@@ -413,9 +363,11 @@ plBifurcation <- ggplot(plot_data, aes(x = pathogen, y = mutualist, color = time
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plBifurcation
+plBifurcation # Figure 3 D in the main text
 
-### Demonstrate the allee effect in the model
+# Regions of stability for initial conditions when there are multiple stable states ----
+
+# Demonstrates the allee effect in the model
 
 # initialize parameter values
 ch <- 0.5
@@ -457,49 +409,39 @@ out_data <- foreach(
   j = 1:nrow(ini_vals),
   .combine = 'rbind'
 ) %dofuture% {
-  # for(i in 1:nrow(in_pars)) {
-  # for (j in 1:nrow(ini_vals)) {
-  # for(ini_host in ini_hosts) {
-  # for(ini_mut in ini_muts) {
   ini_host = ini_vals$host[j]
   ini_mut = ini_vals$mut[j]  
   
   # initialize parameters
   cur_params <- in_pars[i,]
   cur_pars <- as.list(cur_params)
-
+  
   # set initial conditions for the simulation
   ini_state <- c(ini_host, ini_path, ini_mut)
   names(ini_state) <- c("Host", "Pathogen", "Mutualist")
-
+  
   # simulate the dynamics for the iteration's respective initial conditions
   out_dyn <- IntegrateDynamics(ini_state, cur_pars,
                                end_time, time_step,
                                fn = CoralMutPathDynamics)
-
+  
   # extract final densities of each population at the end of the simulation
   end_state <- as.numeric(out_dyn[nrow(out_dyn),2:4])
   
   cur_params$IniMut <- ini_mut
   cur_params$IniHost <- ini_host
   cur_params$IniPath <- ini_path
-
+  
   # Determine coexistence comparative to the frequency cutoff set
   out_coexist <- data.frame(Coexist = ifelse(prod(end_state > freq_cutoff),
                                              "Coexistence",
                                              "No coexistence"))
   
   cur_dyn <- cbind(cur_params, out_coexist)
-  # out_data <- rbind(out_data, cur_dyn)
-  # }
-  # }
-  
 }
 
 out_data <- out_data %>%
   mutate(Coexist = ifelse(IniMut + IniPath > IniHost, NA, Coexist))
-# saveRDS(out_data, "IniCond_data.RDS")
-out_data = readRDS("IniCond_data.RDS")
 
 # plot output dataframe. X-axis represents initial condition of the host population while the y-axis represents the initial condition of the mutualist (colonizer) population
 # Blue represents coexistence while grey represents no coexistence
@@ -520,8 +462,9 @@ plIniCond <- ggplot(out_data,
         text = element_text(size=15),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plIniCond
+plIniCond # Figure 3 E in the main text
 
+# Set up and save figure ----
 layout_mat <- matrix(0, nrow = 5, ncol = 10)
 layout_mat[1,] <- c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2)
 layout_mat[2,] <- c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2)
