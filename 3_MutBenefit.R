@@ -60,6 +60,12 @@ out_data <- foreach(
       
       # choose positive initial conditions to run simulation
       ini_state <- c(h_soln, p_soln, m_soln) + rnorm(n = 3, mean = 0, sd = ini_cond_sd)
+      if(ini_state[1] < (ini_state[2] + ini_state[3])) {
+        ini_state[1] <- (ini_state[2] + ini_state[3])
+      }
+      if(max(ini_state) > 1) {
+        ini_state <- ini_state / max(ini_state)
+      }
       ini_state[ini_state <= 0] <- 0.0001
       names(ini_state) <- c("Host", "Pathogen", "Mutualist")
       
