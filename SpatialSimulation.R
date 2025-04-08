@@ -88,12 +88,13 @@ melt_dyn <- melt(out_dyn, id.vars = c("time"))
 
 plot_freq <- melt_freq %>%
   select(!c("Step"))
-plot_freq$Source <- "Gillespie"
+plot_freq$Source <- "Spatial"
 
 colnames(melt_dyn) <- c("Time", "Occ", "Frequency")
-melt_dyn$Source <- "ODEs"
+melt_dyn$Source <- "Deterministic"
 
-melt_dyn <- rbind(melt_dyn, plot_freq)
+melt_dyn <- rbind(melt_dyn, plot_freq) %>%
+  mutate(Source = factor(Source, levels = c("Spatial", "Deterministic")))
 
 plComp <- ggplot(melt_dyn, aes(x = Time, y = Frequency, color = Occ, linetype = Source)) +
   geom_line(linewidth = 1) + 
@@ -216,17 +217,17 @@ melt_ode_preds <- ode_preds %>%
 
 melt_freqs$MutBenefit <- factor(melt_freqs$MutBenefit, levels = c("c[hm] == c[h]", "c[hm] == 10"))
 
-plPercolation <- ggplot(melt_freqs,
-                        aes(x = ch, y = MeanVal, color = Spatial)) +
+plPercolation <- ggplot(melt_freqs, aes(x = ch, y = MeanVal, shape = Spatial, color = Spatial)) +
   geom_line(data = melt_ode_preds, aes(x = ch, y = value, color = Spatial)) +
   geom_point(size = 3) +
   geom_errorbar(aes(ymin = LowerVal, ymax = UpperVal, width = 0.15)) +
   theme_classic() +
-  scale_color_viridis_d(option = "turbo") +
+  scale_color_viridis_d(option = "plasma", end = 0.75) +
   facet_grid(MutBenefit~variable,
              labeller = label_parsed, 
              scales = "free") +
   theme(text = element_text(size=20),
+        panel.spacing = unit(2.5, "lines"),
         legend.text=element_text(size = 15),
         legend.position = "top",
         strip.background = element_blank(),
@@ -236,7 +237,8 @@ plPercolation <- ggplot(melt_freqs,
         plot.caption.position =  "plot") +
   labs(x = expression("Host Colonization" ~ (c[h])),
        y = "Frequency",
-       color = " ") +
+       color = " ",
+       shape = " ") +
   ggtitle("C")
 plPercolation
 
@@ -244,7 +246,7 @@ plPercolation
 layout_mat <- rbind(c(1, 3, 3), c(2, 3, 3))
 # writing out graph
 jpeg("./figs/FigSpace.jpeg",
-     width = 4000, height = 2500, res = 300)
+     width = 4000, height = 2250, res = 300)
 grid.arrange(plSpatialDynamics, plComp, plPercolation, layout_matrix = layout_mat)
 dev.off()
 
