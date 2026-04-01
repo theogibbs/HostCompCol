@@ -7,6 +7,8 @@ library(see)
 library(cowplot)
 library(doFuture)
 library(profvis)
+library(ggnewscale)
+library(ggpattern)
 
 # returns the derivatives from the current state and
 # model parameters to integrate the ODEs

@@ -55,20 +55,29 @@ out_data <- foreach(
                           ifelse(cur_stable, "\nFeasible\nand stable\n",
                                  "\nFeasible\nbut unstable\n"))
     
-    cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome))
+    cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome,
+                                            H = h_soln,
+                                            P = p_soln,
+                                            M = m_soln))
     cur_dyn
   }
 
+plot_death <- out_data %>%
+  mutate(Outcome = case_when(Outcome == "\nFeasible\nand stable\n" ~ "\nFeasible\nand stable\n",
+                             (Outcome == "\nNot feasible\n") & (P < 0) ~ "\nNot feasible;\n\nMutualist wins\n",
+                             (Outcome == "\nNot feasible\n") & (M < 0) ~ "\nNot feasible;\n\nPathogen wins\n")) %>%
+  filter(!is.na(Outcome))
+
 # create heatmap from output dataframe. X-axis represents pathogenicity value while y-axis represents colonizer (mutualist) colonization rate. 
 # Red represents infeasible equilibrium while blue represents a feasible and stable equilibrium.
-plHeatMapDeath <- ggplot(out_data,
+plHeatMapDeath <- ggplot(plot_death,
                          aes(x = dhp, y = cm, fill = Outcome)) +
   facet_wrap(~ch, labeller = label_bquote(c[h] == .(ch))) +
   geom_tile() + theme_classic() +
   labs(x = expression("Added Host Mortality from the Pathogen" ~ (d[hp])),
        y = expression("Mutualist Colonization"~(c[m])),
        fill = "") +
-  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#B34900", "#ED721A")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
@@ -138,7 +147,7 @@ melt_dyn <- dyn_data %>%
 # plot the dynamics. Time on the x-axis and proportion of space occupied on the y-axis
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   geom_line(linewidth = 1) + theme_classic() +
-  facet_wrap(~dhp, scales = "free", labeller = label_bquote(cols = d[hp] == .(dhp))) +
+  facet_grid(~dhp, labeller = label_bquote(cols = d[hp] == .(dhp))) +
   labs(x = "Time", y = "Frequency", color = "") +
   ggtitle("A") +
   scale_color_viridis_d() +
@@ -146,6 +155,7 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   scale_y_continuous(expand = c(0,0.05)) +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
+        panel.spacing = unit(2, "lines"),
         strip.background = element_blank(),
         axis.text.x = element_text(angle = 45, vjust = 0.5),
         plot.caption = element_text(hjust = 0, face= "italic"),

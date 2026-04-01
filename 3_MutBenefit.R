@@ -99,40 +99,47 @@ out_data <- foreach(
     }
 
 proc_data <- out_data %>%
-  mutate(pred_soln = ifelse(pred_soln > 0, pred_soln, NA))
+  mutate(pred_soln = ifelse(pred_soln > 0, pred_soln, NA)) %>%
+  filter(time > 3950)
 
 # Reorder data to have labels in descending order
 proc_data <- mutate(proc_data, cm_label = paste0("c[m] == ", cm))
 proc_data$cm_label <- factor(proc_data$cm_label,
                              levels = c("c[m] == 15", "c[m] == 11", "c[m] == 10", "c[m] == 5"))
 
-# plot output dataframe. X-axis represents additional host colonization rate from mutualist settlement while y-axis represents frequency of the respective population
-# Blue indicates feasible and stable, yellow indicates feasible and unstable, and red indicates infeasible equilbria
+# plot output dataframe. X-axis represents host colonization rate from mutualist settlement while y-axis represents frequency of the respective population
+# Blue indicates feasible and stable, yellow indicates feasible and unstable, and orange indicates infeasible equilbria
 # Each panel is a different population: host, mutualist (colonizer), or pathogen (competitor)
-plMutBenefit <- ggplot(proc_data,
-                       aes(x = chm, y = value)) +
+plMutBenefit <- ggplot(proc_data, aes(x = chm, y = value)) +
   facet_grid(
     rows = vars(cm_label),
     cols = vars(variable),
     labeller = label_parsed
   ) +
-  geom_point(size = 2, alpha = 0.005) + theme_classic() +
-  geom_line(linewidth = 1, aes(x = chm, y = pred_soln, color = Stable)) +
-  scale_color_manual(breaks = c("Feasible and stable", "Feasible but unstable", "Not feasible"),
-                     values = c("#0072B2", "#F0E442", "#D55E00")) +
-  labs(x = expression("Added Host Colonization from the Mutualist" ~ (c[hm])),
-       y = "Frequency",
-       color = "",
-       linetype = "") +
+  geom_point(aes(color = as.factor(IniCondSd)), size = 3, alpha = 0.01) +
+  scale_color_manual(values = c("#000000", "#CC79A7")) +
+  labs(color = "Noise added to the Initial Conditions") +
+  guides(color = guide_legend(override.aes = list(linetype = 0, alpha = 1))) +
+  
+  new_scale_color() +
+  
+  geom_line(linewidth = 2, show.legend = FALSE, aes(x = chm, y = pred_soln, color = Stable)) +
+
+  scale_color_manual(values = c("#0072B2", "#F0E442", "#D55E00")) + 
+  
+  theme_classic() +
+  labs(x = expression("Host Colonization due to the Mutualist" ~ (c[hm])),
+       y = "Frequency") +
   ggtitle("A") +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
-        legend.position = "none",
         strip.background = element_blank(),
+        legend.position = "top",
         plot.caption = element_text(hjust = 0, face= "italic"),
         plot.title.position = "plot",
         plot.caption.position =  "plot")
-plMutBenefit # Figure 3 A in the main text
+
+plMutBenefit
 
 # Feasibility and stability of coexistence as mutualist colonization rate and benefit to host colonization are varied ----
 
@@ -202,7 +209,7 @@ plHeatMap <- ggplot(out_data,
                     aes(x = chm, y = cm, fill = Outcome)) +
   geom_tile() + theme_classic() +
   scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#F0E442", "#D55E00")) +
-  labs(x = expression(atop("Added Host Colonization from the Mutualist" ~ (c[hm]))),
+  labs(x = expression(atop("Host Colonization due to the Mutualist" ~ (c[hm]))),
        y = expression("Mutualist Colonization" ~ (c[m])),
        fill = "") +
   facet_grid(
@@ -446,12 +453,14 @@ out_data <- foreach(
   cur_dyn <- cbind(cur_params, out_coexist)
 }
 
-out_data <- out_data %>%
-  mutate(Coexist = ifelse(IniMut + IniPath > IniHost, NA, Coexist))
+plot_bistability <- out_data %>%
+  mutate(Coexist = ifelse(IniMut + IniPath > IniHost, NA, Coexist)) %>%
+  mutate(Coexist = ifelse(Coexist == "No coexistence", "All species excluded", Coexist)) %>%
+  mutate(Coexist = factor(Coexist, levels = c("Coexistence", "All species excluded")))
 
 # plot output dataframe. X-axis represents initial condition of the host population while the y-axis represents the initial condition of the mutualist (colonizer) population
 # Blue represents coexistence while grey represents no coexistence
-plIniCond <- ggplot(out_data,
+plIniCond <- ggplot(plot_bistability,
                     aes(x = IniHost, y = IniMut, fill = Coexist)) +
   geom_tile() + theme_classic() +
   scale_fill_manual(values = c("blue", "gray"), na.value="white", na.translate = F) +
@@ -472,9 +481,9 @@ plIniCond # Figure 3 E in the main text
 
 # Set up and save figure ----
 layout_mat <- matrix(0, nrow = 5, ncol = 10)
-layout_mat[1,] <- c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2)
-layout_mat[2,] <- c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2)
-layout_mat[3,] <- c(1, 1, 1, 1, 1, 2, 2, 2, 2, 2)
+layout_mat[1,] <- c(1, 1, 1, 1, 1, 1, 2, 2, 2, 2)
+layout_mat[2,] <- c(1, 1, 1, 1, 1, 1, 2, 2, 2, 2)
+layout_mat[3,] <- c(1, 1, 1, 1, 1, 1, 2, 2, 2, 2)
 layout_mat[4,] <- c(3, 3, 3, 4, 4, 4, 4, 5, 5, 5)
 layout_mat[5,] <- c(3, 3, 3, 4, 4, 4, 4, 5, 5, 5)
 

@@ -76,7 +76,7 @@ plTimescales <- ggplot(out_data,
                     aes(x = chm, y = dm, fill = Outcome)) +
   geom_tile() + theme_classic() +
   scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#F0E442", "#D55E00")) +
-  labs(x = expression(atop("Added Host Colonization from the Mutualist" ~ (c[hm]))),
+  labs(x = expression(atop("Host Colonization due to the Mutualist" ~ (c[hm]))),
        y = expression("Timescale of bacterial to host dynamics" ~ (tau)),
        fill = "") +
    facet_wrap(~unscaled_cm, labeller = label_bquote(rows = c[m] == .(unscaled_cm)), nrow = 1) +
@@ -211,14 +211,15 @@ plFastBacteria <- ggplot(proc_data,
     cols = vars(variable),
     labeller = label_parsed
   ) +
-  geom_point(size = 2, alpha = 0.005) + theme_classic() +
-  geom_line(linewidth = 1, aes(x = chm, y = pred_soln, color = Stable)) +
-  scale_color_manual(breaks = c("Feasible and stable", "Feasible but unstable", "Not feasible"),
-                     values = c("#0072B2", "#F0E442", "#D55E00")) +
-  labs(x = expression("Added Host Colonization from the Mutualist" ~ (c[hm])),
+  geom_point(size = 3, alpha = 0.01, aes(color = as.factor(IniCondSd))) +
+  theme_classic() +
+  geom_line(linewidth = 2, aes(x = chm, y = pred_soln, color = Stable)) +
+  scale_color_manual(breaks = c("0.001", "0.5", "Feasible and stable", "Feasible but unstable", "Not feasible"),
+                     values = c("#000000", "#CC79A7", "#0072B2", "#F0E442", "#D55E00")) +
+  guides(color = guide_legend(override.aes = list(linetype = 1, alpha = 1))) +
+  labs(x = expression("Host Colonization due to the Mutualist" ~ (c[hm])),
        y = "Frequency",
-       color = "",
-       linetype = "") +
+       color = "Noise added to the Initial Conditions") +
   ggtitle("B") +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),

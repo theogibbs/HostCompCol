@@ -145,9 +145,9 @@ melt_freqs <- sim_freqs %>%
   select(c("Step", "Time", "Host", "Pathogen", "Mutualist", "Spatial", "cm", "ch", "chm")) %>%
   melt(id.vars = c("Step", "Time", "Spatial", "cm", "ch", "chm")) %>%
   group_by(Spatial, cm, ch, chm, variable) %>%
-  summarise(MeanVal = mean(value),
-            LowerVal = quantile(value, probs = 0.1),
-            UpperVal = quantile(value, probs = 0.9)) %>%
+  summarise(MeanVal = median(value),
+            LowerVal = quantile(value, probs = 0.25),
+            UpperVal = quantile(value, probs = 0.75)) %>%
   mutate(MutBenefit = ifelse(chm > ch, "c[hm] == 10", "c[hm] == c[h]")) %>%
   mutate(Spatial = ifelse(Spatial == "NON-SPATIAL", "Stochastic", "Spatial")) %>%
   mutate(Spatial = fct_rev(Spatial))

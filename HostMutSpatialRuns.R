@@ -48,7 +48,7 @@ in_chms <- 10
 start_time <- Sys.time()
 
 out_freqs <- data.frame()
-num_repl <- 10
+num_repl <- 50
 
 for(i in 1:num_repl) {
   print(paste("REPLICATE:", i, "OUT OF", num_repl, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"))

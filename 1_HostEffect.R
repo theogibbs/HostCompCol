@@ -51,18 +51,27 @@ out_data <- foreach(
                         ifelse(cur_stable, "\nFeasible\nand stable\n",
                                "\nFeasible\nbut unstable\n"))
   
-  cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome))
+  cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome,
+                                          H = h_soln,
+                                          P = p_soln,
+                                          M = m_soln))
   cur_dyn
 }
 
-plHeatMapHost <- ggplot(out_data,
+plot_hosteff <- out_data %>%
+  mutate(Outcome = case_when(Outcome == "\nFeasible\nand stable\n" ~ "\nFeasible\nand stable\n",
+                           (Outcome == "\nNot feasible\n") & (P < 0) ~ "\nNot feasible;\n\nMutualist wins\n",
+                           (Outcome == "\nNot feasible\n") & (M < 0) ~ "\nNot feasible;\n\nPathogen wins\n")) %>%
+  filter(!is.na(Outcome))
+
+plHeatMapHost <- ggplot(plot_hosteff,
                          aes(x = dh, y = ch, fill = Outcome)) +
   facet_wrap(~cm, labeller = label_bquote(c[m] == .(cm))) +
   geom_tile() + theme_classic() +
   labs(x = expression("Host Mortality" ~ (d[h])),
        y = expression("Host Colonization" ~ (c[h])),
        fill = "") +
-  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#B34900", "#ED721A")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
@@ -125,7 +134,7 @@ melt_dyn <- dyn_data %>%
 
 plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   geom_line(linewidth = 1) + theme_classic() +
-  facet_wrap(~dh, scales = "free", labeller = label_bquote(cols = d[h] == .(dh))) +
+  facet_grid(~dh, labeller = label_bquote(cols = d[h] == .(dh))) +
   labs(x = "Time", y = "Frequency", color = "") +
   ggtitle("A") +
   scale_x_continuous(expand = c(0, 0)) +
@@ -133,6 +142,7 @@ plDyn <- ggplot(melt_dyn, aes(x = time, y = value, color = variable)) +
   scale_color_viridis_d() +
   theme(text = element_text(size=15),
         legend.text=element_text(size = 15),
+        panel.spacing = unit(2, "lines"),
         strip.background = element_blank(),
         axis.text.x = element_text(angle = 45, vjust = 0.5),
         plot.caption = element_text(hjust = 0, face= "italic"),
@@ -191,18 +201,27 @@ out_data <- foreach(
                           ifelse(cur_stable, "\nFeasible\nand stable\n",
                                  "\nFeasible\nbut unstable\n"))
     
-    cur_dyn <- cbind(cur_params, data.frame(Outcome = cur_outcome))
+    cur_dyn <- cbind(cur_params,  data.frame(Outcome = cur_outcome,
+                                             H = h_soln,
+                                             P = p_soln,
+                                             M = m_soln))
     cur_dyn
   }
 
-plHeatMapClassicComp <- ggplot(out_data,
+plot_classiccomp <- out_data %>%
+  mutate(Outcome = case_when(Outcome == "\nFeasible\nand stable\n" ~ "\nFeasible\nand stable\n",
+                             (Outcome == "\nNot feasible\n") & (P < 0) ~ "\nNot feasible;\n\nMutualist wins\n",
+                             (Outcome == "\nNot feasible\n") & (M < 0) ~ "\nNot feasible;\n\nPathogen wins\n")) %>%
+  filter(!is.na(Outcome))
+
+plHeatMapClassicComp <- ggplot(plot_classiccomp,
                         aes(x = cp, y = cm, fill = Outcome)) +
   facet_wrap(~dh, labeller = label_bquote(d[h] == .(dh))) +
   geom_tile() + theme_classic() +
   labs(x = expression("Pathogen Colonization" ~ (c[p])),
        y = expression("Mutualist Colonization" ~ (c[m])),
        fill = "") +
-  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#D55E00")) +
+  scale_fill_manual("Coexistence\nstatus:", values = c("#0072B2", "#ED721A", "#B34900")) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(axis.text = element_text( size = 10 ),
